@@ -6,6 +6,8 @@ defmodule Elixirding.RootRouter do
   require Plug.Logger
   use Plug.Debugger
   import Plug.Conn
+  @appid "dingoaxmlpncfavddw1fok"
+  @appsecret "a0VlZMUpiIC4NnpIJ7FqF5QpxnnKq96Y4KMxUPJtRtbDWQLXrynziwbcJ-93dO8t"
 
   plug :match
   plug Plug.Logger
@@ -15,47 +17,55 @@ defmodule Elixirding.RootRouter do
   plug :dispatch
 
   get "/" do
-    # appid = "dingoaxmlpncfavddw1fok"
-    # appsecret = "a0VlZMUpiIC4NnpIJ7FqF5QpxnnKq96Y4KMxUPJtRtbDWQLXrynziwbcJ-93dO8t"
 
-    {:ok, access_token} = 
-      "https://oapi.dingtalk.com/sns/gettoken?appid=dingoaxmlpncfavddw1fok&appsecret=a0VlZMUpiIC4NnpIJ7FqF5QpxnnKq96Y4KMxUPJtRtbDWQLXrynziwbcJ-93dO8t"
+    %{ "access_token" => access_token } = 
+      "https://oapi.dingtalk.com/sns/gettoken?appid="<>@appid<>"&appsecret="<>@appsecret
       |> HTTPotion.get!()
       |> handle_response
-      |> Map.fetch("access_token")
-    IO.inspect "access_token #{access_token}"
 
     conn = fetch_query_params(conn)
     %{ "code" => tmp_auth_code, "state" => state } = conn.params
-    IO.puts "code #{tmp_auth_code}, state #{state}"
+    IO.puts "code #{tmp_auth_code}, state #{state}\n"
 
-    IO.puts "{\"tmp_auth_code\": \"#{tmp_auth_code}\"}"
-    res = 
-      "https://oapi.dingtalk.com/sns/get_persistent_code?access_token=" <> access_token
-      |> HTTPotion.post!([body: '{"tmp_auth_code": "#{tmp_auth_code}"}', headers: ["Content-Type": "application/json"]])
-      |> handle_response
+    %{ "persistent_code" => persistent_code, "openid" => openid }  =
+          "https://oapi.dingtalk.com/sns/get_persistent_code?access_token=" <> access_token
+          |> HTTPotion.post!([
+            body: '{"tmp_auth_code": "#{tmp_auth_code}"}',
+            headers: ["Content-Type": "application/json"] ])
+          |> handle_response
 
-
-    {:ok, persistent_code}  = Map.fetch(res, "persistent_code")
-    {:ok, openid}  = Map.fetch(res, "openid")
-    IO.inspect "persistent_code #{persistent_code}, openid #{openid}"
-
-    {:ok, sns_token} =  "https://oapi.dingtalk.com/sns/get_sns_token?access_token=" <> access_token
-                 |> HTTPotion.post!([body: '{"persistent_code": "#{persistent_code}", "openid": "#{openid}"}', headers: ["Content-Type": "application/json"]])
+    %{"sns_token" => sns_token} =  
+                 "https://oapi.dingtalk.com/sns/get_sns_token?access_token=" <> access_token
+                 |> HTTPotion.post!([
+                   body: '{"persistent_code": "#{persistent_code}", "openid": "#{openid}"}',
+                   headers: ["Content-Type": "application/json"]])
                  |> handle_response
-                 |>  Map.fetch("sns_token")
-    IO.inspect "sns_token #{sns_token}"
 
     user_info = "https://oapi.dingtalk.com/sns/getuserinfo?sns_token=" <> sns_token
                  |> HTTPotion.get!()
                  |> handle_response
-    IO.inspect user_info
 
-    send_resp(conn, 200, "Finish")
+    send_resp(conn, 200, "Login Succeed")
   end
 
   def handle_response(%HTTPotion.Response{status_code: 200, headers: _, body: body}) do
-    IO.inspect(JSON.decode!(body))
-    JSON.decode!(body)
+    res = JSON.decode!(body)
+    IO.inspect res
+    %{"errcode" => errcode, "errmsg" => errmsg } = res
+
+    if errcode != 0 do
+      IO.inspect("error: #{errmsg}, errcode: #{errcode}")
+    else
+      res
+    end
+  end
+
+  def handle_response(_) do
+    IO.puts "http error"
+  end
+
+
+  get "/favicon.ico" do
+    send_resp(conn, 200, "nope")
   end
 end
