@@ -17,15 +17,19 @@ defmodule Elixirding.RootRouter do
   plug :dispatch
 
   get "/" do
+    conn = fetch_query_params(conn)
+    %{ "code" => tmp_auth_code, "state" => state } = conn.params
+    IO.puts "code #{tmp_auth_code}, state #{state}\n"
+    handle_login(tmp_auth_code)
 
+    send_resp(conn, 200, "Login Succeed")
+  end
+
+  def handle_login(tmp_auth_code) do
     %{ "access_token" => access_token } = 
       "https://oapi.dingtalk.com/sns/gettoken?appid="<>@appid<>"&appsecret="<>@appsecret
       |> HTTPotion.get!()
       |> handle_response
-
-    conn = fetch_query_params(conn)
-    %{ "code" => tmp_auth_code, "state" => state } = conn.params
-    IO.puts "code #{tmp_auth_code}, state #{state}\n"
 
     %{ "persistent_code" => persistent_code, "openid" => openid }  =
           "https://oapi.dingtalk.com/sns/get_persistent_code?access_token=" <> access_token
@@ -44,8 +48,6 @@ defmodule Elixirding.RootRouter do
     user_info = "https://oapi.dingtalk.com/sns/getuserinfo?sns_token=" <> sns_token
                  |> HTTPotion.get!()
                  |> handle_response
-
-    send_resp(conn, 200, "Login Succeed")
   end
 
   def handle_response(%HTTPotion.Response{status_code: 200, headers: _, body: body}) do

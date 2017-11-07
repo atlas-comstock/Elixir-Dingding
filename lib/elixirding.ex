@@ -5,7 +5,7 @@ defmodule Elixirding do
   use Application
 
   # def start(_type, _args) do
-  IO.puts "start!"
+  IO.puts "start:"
   import Supervisor.Spec, warn: false
   children = [
     supervisor(Elixirding.Web.Supervisor, []),
